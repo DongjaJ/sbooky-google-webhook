@@ -1,0 +1,31 @@
+{
+  "name": "sbooky-google-webhook",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "prepare": "simple-git-hooks",
+    "start": "tsx ./index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tsx": "^4.19.4"
+  },
+  "devDependencies": {
+    "@types/dotenv": "^8.2.3",
+    "@types/node": "^22.15.17",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.5.0",
+    "google-auth-library": "^9.15.1",
+    "googleapis": "^148.0.0",
+    "simple-git-hooks": "^2.13.0",
+    "typescript": "^5.8.3"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm type-check"
+  }
+}
