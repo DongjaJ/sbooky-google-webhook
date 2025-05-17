@@ -5,11 +5,15 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 
+import { Webhook, MessageBuilder } from "discord-webhook-node";
+
 dotenv.config();
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.tz.setDefault("Asia/Seoul");
+
+const hook = new Webhook(process.env.DISCORD_WEBHOOK_URL);
 
 export const schema = {
   serviceName: "스부키",
@@ -17,7 +21,7 @@ export const schema = {
   privateKey: process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, "\n"),
   siteUrl: "sc-domain:sbooky.net",
   searchConsoleUrl:
-    "https://search.google.com/search-console/core-web-vitals?resource_id=sc-domain%3Asbooky.net",
+    "https://search.google.com/search-console?resource_id=sc-domain%3Asbooky.net",
   projectName: "sbooky",
 };
 
@@ -57,14 +61,14 @@ async function fetchSearchData({
   return searchAnalytics.data.rows || [];
 }
 
-interface TestSearchConsole {
+type TestSearchConsole = {
   clientEmail: string;
   privateKey: string;
   siteUrl: string;
   searchConsoleUrl: string;
   projectName: string;
   serviceName: string;
-}
+};
 
 export async function testSearchConsole({
   clientEmail,
@@ -99,64 +103,27 @@ export async function testSearchConsole({
     }),
   ]);
 
-  // 주간 합계 계산
-  const currentWeekSummary = { clicks: 0, impressions: 0, ctr: 0, position: 0 };
-  const previousWeekSummary = {
-    clicks: 0,
-    impressions: 0,
-    ctr: 0,
-    position: 0,
-  };
+  const currentWeekSummary = currentWeekData.reduce(
+    (acc, row) => {
+      acc.clicks += row.clicks || 0;
+      acc.impressions += row.impressions || 0;
+      acc.ctr += row.ctr || 0;
+      acc.position += row.position || 0;
+      return acc;
+    },
+    { clicks: 0, impressions: 0, ctr: 0, position: 0 }
+  );
 
-  currentWeekData.forEach((row) => {
-    currentWeekSummary.clicks += row.clicks || 0;
-    currentWeekSummary.impressions += row.impressions || 0;
-    currentWeekSummary.ctr += row.ctr || 0;
-    currentWeekSummary.position += row.position || 0;
-  });
-
-  previousWeekData.forEach((row) => {
-    previousWeekSummary.clicks += row.clicks || 0;
-    previousWeekSummary.impressions += row.impressions || 0;
-    previousWeekSummary.ctr += row.ctr || 0;
-    previousWeekSummary.position += row.position || 0;
-  });
-
-  // 평균값 계산
-  currentWeekSummary.ctr = currentWeekSummary.ctr / currentWeekData.length;
-  currentWeekSummary.position =
-    (currentWeekSummary.position ?? 0) / currentWeekData.length;
-  previousWeekSummary.ctr = previousWeekSummary.ctr / previousWeekData.length;
-  previousWeekSummary.position =
-    previousWeekSummary.position / previousWeekData.length;
-
-  // 증감률 계산
-  const changes = {
-    clicks: (
-      ((currentWeekSummary.clicks - previousWeekSummary.clicks) /
-        previousWeekSummary.clicks) *
-      100
-    ).toFixed(1),
-    impressions: (
-      ((currentWeekSummary.impressions - previousWeekSummary.impressions) /
-        previousWeekSummary.impressions) *
-      100
-    ).toFixed(1),
-    ctr: (
-      ((currentWeekSummary.ctr - previousWeekSummary.ctr) /
-        previousWeekSummary.ctr) *
-      100
-    ).toFixed(1),
-    position: (
-      ((previousWeekSummary.position - currentWeekSummary.position) /
-        previousWeekSummary.position) *
-      100
-    ).toFixed(1),
-  };
-
-  console.log(currentWeekSummary);
-  console.log(previousWeekSummary);
-  console.log(changes);
+  const previousWeekSummary = previousWeekData.reduce(
+    (acc, row) => {
+      acc.clicks += row.clicks || 0;
+      acc.impressions += row.impressions || 0;
+      acc.ctr += row.ctr || 0;
+      acc.position += row.position || 0;
+      return acc;
+    },
+    { clicks: 0, impressions: 0, ctr: 0, position: 0 }
+  );
 
   return {
     currentStartDate,
@@ -165,7 +132,6 @@ export async function testSearchConsole({
     previousStartDate,
     currentWeekSummary,
     previousWeekSummary,
-    changes,
     searchConsoleUrl,
     projectName,
     serviceName,
@@ -173,11 +139,59 @@ export async function testSearchConsole({
 }
 
 async function main() {
-  const searchConsoleData = await testSearchConsole({
+  const {
+    currentWeekSummary,
+    previousWeekSummary,
+    searchConsoleUrl,
+    currentStartDate,
+    currentEndDate,
+    previousStartDate,
+    previousEndDate,
+  } = await testSearchConsole({
     ...schema,
   });
 
-  //   console.log("Search Console Data:", searchConsoleData);
+  const embed = new MessageBuilder()
+    .setTitle("📊 Search Console 주간 리포트")
+    .addField(
+      "🔍 Search Console",
+      `[Search Console에서 보기](${searchConsoleUrl})`
+    )
+    .addField(
+      "📅 측정 기간",
+      `이번 주: ${currentStartDate.format(
+        "YYYY-MM-DD"
+      )} ~ ${currentEndDate.format("YYYY-MM-DD")}`
+    )
+    .addField(
+      "📅 측정 기간",
+      `지난 주: ${previousStartDate.format(
+        "YYYY-MM-DD"
+      )} ~ ${previousEndDate.format("YYYY-MM-DD")}`
+    )
+    .addField(
+      "총 클릭 수",
+      `이번 주: ${currentWeekSummary.clicks}회\n지난 주: ${previousWeekSummary.clicks}회`
+    )
+    .addField(
+      "총 노출 수",
+      `이번 주: ${currentWeekSummary.impressions}회\n지난 주: ${previousWeekSummary.impressions}회`
+    )
+    .addField(
+      "평균 CTR(클릭률)",
+      `이번 주: ${(currentWeekSummary.ctr * 100).toFixed(2)}%\n지난 주: ${(
+        previousWeekSummary.ctr * 100
+      ).toFixed(2)}%`
+    )
+    .addField(
+      "평균 검색 순위",
+      `이번 주: ${currentWeekSummary.position.toFixed(
+        1
+      )}위\n지난 주: ${previousWeekSummary.position.toFixed(1)}위`
+    )
+    .setFooter("🕒 생성: " + dayjs().format("YYYY-MM-DD HH:mm:ss"));
+
+  hook.send(embed);
 }
 
 main();
