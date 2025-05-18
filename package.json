@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "type": "module",
+  "packageManager": "pnpm@10.11.0",
   "scripts": {
     "type-check": "tsc --noEmit",
     "prepare": "simple-git-hooks",
